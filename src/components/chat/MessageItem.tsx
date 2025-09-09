@@ -12,7 +12,11 @@ import {
   Download,
   Play,
   Pause,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Flag,
+  ZoomIn,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +45,7 @@ interface Message {
     id: string;
     name: string;
     url: string;
-    type: 'image' | 'file' | 'voice';
+    type: 'image' | 'file' | 'voice' | 'video';
     size?: number;
   }[];
 }
@@ -155,14 +159,19 @@ export const MessageItem = ({ message, showAvatar, className }: MessageItemProps
               {message.attachments.map((attachment) => (
                 <div key={attachment.id} className="max-w-md">
                   {attachment.type === 'image' && (
-                    <div className="relative group/image">
+                    <div className="relative group/image max-w-md">
                       <img
                         src="/placeholder.svg"
                         alt={attachment.name}
                         className="rounded-lg border border-border max-h-80 object-cover cursor-pointer hover:brightness-90 transition-all"
+                        onClick={() => console.log('Open image modal')}
                       />
-                      <div className="absolute top-2 right-2 opacity-0 group-hover/image:opacity-100 transition-opacity">
-                        <Button variant="secondary" size="sm" className="shadow-md">
+                      <div className="absolute inset-0 bg-black/0 group-hover/image:bg-black/10 transition-colors rounded-lg"></div>
+                      <div className="absolute top-2 right-2 opacity-0 group-hover/image:opacity-100 transition-opacity flex gap-1">
+                        <Button variant="secondary" size="sm" className="shadow-md h-8 w-8 p-0">
+                          <ZoomIn className="h-4 w-4" />
+                        </Button>
+                        <Button variant="secondary" size="sm" className="shadow-md h-8 w-8 p-0">
                           <Download className="h-4 w-4" />
                         </Button>
                       </div>
@@ -170,21 +179,21 @@ export const MessageItem = ({ message, showAvatar, className }: MessageItemProps
                   )}
 
                   {attachment.type === 'voice' && (
-                    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg border">
+                    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg border max-w-md">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={toggleVoicePlayback}
-                        className="h-8 w-8 p-0 hover:bg-background"
+                        className="h-10 w-10 p-0 hover:bg-background"
                       >
                         {isPlaying ? (
-                          <Pause className="h-4 w-4" />
+                          <Pause className="h-5 w-5" />
                         ) : (
-                          <Play className="h-4 w-4" />
+                          <Play className="h-5 w-5" />
                         )}
                       </Button>
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-medium">{attachment.name}</span>
                           {attachment.size && (
                             <span className="text-xs text-muted-foreground">
@@ -192,9 +201,38 @@ export const MessageItem = ({ message, showAvatar, className }: MessageItemProps
                             </span>
                           )}
                         </div>
-                        <div className="h-1 bg-background rounded-full mt-2">
-                          <div className="h-1 bg-primary rounded-full w-1/3"></div>
+                        <div className="h-2 bg-background rounded-full">
+                          <div className="h-2 bg-primary rounded-full w-1/3 transition-all"></div>
                         </div>
+                        <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
+                          <span>0:23 / 1:15</span>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+                              <Volume2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" className="hover:bg-background h-8 w-8 p-0">
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {attachment.type === 'video' && (
+                    <div className="relative max-w-lg group/video">
+                      <video
+                        className="w-full rounded-lg border border-border max-h-80"
+                        controls
+                        poster="/placeholder.svg"
+                      >
+                        <source src={attachment.url} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                      <div className="absolute top-2 right-2 opacity-0 group-hover/video:opacity-100 transition-opacity">
+                        <Button variant="secondary" size="sm" className="shadow-md h-8 w-8 p-0">
+                          <Download className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -245,6 +283,9 @@ export const MessageItem = ({ message, showAvatar, className }: MessageItemProps
           <div className="absolute top-2 right-4 flex items-center gap-1 bg-chat-header shadow-soft border border-border rounded-md p-1">
             <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-muted">
               <Reply className="h-3 w-3" />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-muted">
+              <Flag className="h-3 w-3" />
             </Button>
             <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-muted">
               <Edit className="h-3 w-3" />

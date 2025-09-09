@@ -1,15 +1,32 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Moon, Sun } from "lucide-react";
+import { Menu, X, Moon, Sun, Shield, Settings, Plus } from "lucide-react";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessages } from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
 import { RoomTabs } from "./RoomTabs";
+import { AdminBanner } from "./AdminBanner";
+import { ModerationPanel } from "./ModerationPanel";
+import { RoomManagement } from "./RoomManagement";
 
 export const ChatLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [showModerationPanel, setShowModerationPanel] = useState(false);
+  const [showRoomManagement, setShowRoomManagement] = useState(false);
+  const userRole = 'admin'; // Mock user role
+
+  // Mock announcement
+  const announcement = {
+    id: '1',
+    type: 'announcement' as const,
+    title: 'Welcome to ChatFlow!',
+    message: 'New enhanced chat features are now live including voice messages, file sharing, and advanced moderation tools.',
+    author: 'Alex Chen',
+    timestamp: new Date(),
+    dismissible: true
+  };
 
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
@@ -27,43 +44,82 @@ export const ChatLayout = () => {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
-        {/* Header with theme toggle */}
+        {/* Admin Banner */}
+        <AdminBanner announcement={announcement} />
+        
+        {/* Header with enhanced controls */}
         <div className="bg-chat-header border-b border-border p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="hover:bg-muted"
+              className="hover:bg-muted hover:scale-105 transition-transform"
             >
               {sidebarCollapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
             </Button>
             <ChatHeader />
           </div>
           
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleTheme}
-            className="hover:bg-muted"
-          >
-            {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </Button>
+          <div className="flex items-center gap-2">
+            {(userRole === 'admin' || userRole === 'moderator') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowModerationPanel(true)}
+                className="hover:bg-muted hover:scale-105 transition-transform"
+              >
+                <Shield className="h-5 w-5" />
+              </Button>
+            )}
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowRoomManagement(true)}
+              className="hover:bg-muted hover:scale-105 transition-transform"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleTheme}
+              className="hover:bg-muted hover:scale-105 transition-transform"
+            >
+              {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
 
         {/* Room/Channel Tabs */}
         <RoomTabs />
 
-        {/* Messages Area */}
-        <div className="flex-1 overflow-hidden">
+        {/* Messages Area with better spacing */}
+        <div className="flex-1 overflow-hidden bg-chat-bg">
           <ChatMessages />
         </div>
 
-        {/* Input Area */}
-        <div className="bg-chat-input border-t border-border p-4">
+        {/* Enhanced Input Area */}
+        <div className="bg-chat-input border-t border-border p-6">
           <ChatInput />
         </div>
       </div>
+
+      {/* Modals */}
+      <ModerationPanel
+        isOpen={showModerationPanel}
+        onClose={() => setShowModerationPanel(false)}
+        userRole={userRole}
+      />
+      
+      <RoomManagement
+        isOpen={showRoomManagement}
+        onClose={() => setShowRoomManagement(false)}
+        userRole={userRole}
+        currentRoom="general"
+      />
     </div>
   );
 };
