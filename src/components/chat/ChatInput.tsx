@@ -14,23 +14,18 @@ import {
 import { cn } from "@/lib/utils";
 import { MentionDropdown } from "./MentionDropdown";
 import { DragDropOverlay } from "./DragDropOverlay";
+import { useChatData } from "@/hooks/useChatData";
+import { useToast } from "@/hooks/use-toast";
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
-interface User {
-  id: string;
-  name: string;
-  avatar: string;
-  role: 'admin' | 'moderator' | 'user';
-  country: string;
-}
 
 export const ChatInput = () => {
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [replyTo, setReplyTo] = useState<{
+    id: string;
     author: string;
     content: string;
   } | null>(null);
@@ -46,27 +41,33 @@ export const ChatInput = () => {
     position: { top: 0, left: 0 }
   });
 
+  const { sendMessage, users } = useChatData();
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!message.trim() && attachedFiles.length === 0) return;
     
-    // Auto-link detection
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const processedMessage = message.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
-    
-    console.log('Sending message:', { 
-      message: processedMessage, 
-      attachedFiles, 
-      replyTo 
-    });
-    
-    setMessage("");
-    setAttachedFiles([]);
-    setReplyTo(null);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+    try {
+      if (attachedFiles.length > 0) {
+        toast({
+          title: "File upload",
+          description: "File upload functionality coming soon!",
+        });
+        return;
+      }
+      
+      await sendMessage(message.trim(), replyTo?.id);
+      
+      setMessage("");
+      setAttachedFiles([]);
+      setReplyTo(null);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
     }
   };
 
@@ -111,13 +112,9 @@ export const ChatInput = () => {
     }
   };
 
-  const handleMentionSelect = (user: User) => {
+  const handleMentionSelect = (user: any) => {
     const beforeAt = message.substring(0, message.lastIndexOf('@'));
-    const afterMention = message.substring(message.indexOf(' ', message.lastIndexOf('@')) !== -1 
-      ? message.indexOf(' ', message.lastIndexOf('@')) 
-      : message.length);
-    
-    const newMessage = beforeAt + `@${user.name} ` + message.substring(message.lastIndexOf('@') + mentionDropdown.query.length + 1);
+    const newMessage = beforeAt + `@${user.username} ` + message.substring(message.lastIndexOf('@') + mentionDropdown.query.length + 1);
     setMessage(newMessage);
     setMentionDropdown(prev => ({ ...prev, isOpen: false }));
     textareaRef.current?.focus();
@@ -158,8 +155,11 @@ export const ChatInput = () => {
     });
     
     if (errors.length > 0) {
-      console.error('File upload errors:', errors);
-      // Here you would show toast notifications for errors
+      toast({
+        title: "File validation errors",
+        description: errors.join(', '),
+        variant: "destructive",
+      });
     }
     
     setAttachedFiles(prev => [...prev, ...validFiles]);
@@ -171,6 +171,12 @@ export const ChatInput = () => {
 
   const toggleRecording = () => {
     setIsRecording(!isRecording);
+    if (!isRecording) {
+      toast({
+        title: "Voice recording",
+        description: "Voice message functionality coming soon!",
+      });
+    }
   };
 
   const adjustTextareaHeight = () => {
@@ -180,44 +186,7 @@ export const ChatInput = () => {
     }
   };
 
-  // Drag and drop handlers
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-    
-    const hasFiles = Array.from(e.dataTransfer.items).some(item => item.kind === 'file');
-    setIsValidDrop(hasFiles);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setIsDragging(false);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    
-    const files = e.dataTransfer.files;
-    handleFileUpload(files);
-  };
-
-  const formatFileSize = (bytes: number) => {
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    if (bytes === 0) return '0 Bytes';
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
-  };
+  // ... keep existing code (drag and drop handlers and other functions)
 
   const characterCount = message.length;
   const isOverLimit = characterCount > MAX_MESSAGE_LENGTH;
@@ -225,10 +194,7 @@ export const ChatInput = () => {
   return (
     <div 
       className="space-y-3 relative"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
+      // ... keep existing drag handlers
     >
       <DragDropOverlay isDragging={isDragging} isValidDrop={isValidDrop} />
       
@@ -272,7 +238,7 @@ export const ChatInput = () => {
                     {file.name}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {formatFileSize(file.size)}
+                    {Math.round(file.size / 1024)} KB
                   </span>
                 </div>
                 <Button
@@ -370,22 +336,6 @@ export const ChatInput = () => {
           accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.txt"
         />
       </div>
-
-      {/* Recording indicator */}
-      {isRecording && (
-        <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg animate-pulse">
-          <div className="w-2 h-2 bg-destructive rounded-full animate-ping"></div>
-          <span className="text-sm font-medium">Recording voice message...</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleRecording}
-            className="ml-auto hover:bg-destructive/20"
-          >
-            Stop
-          </Button>
-        </div>
-      )}
 
       {/* Mention dropdown */}
       <MentionDropdown

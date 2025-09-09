@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Moon, Sun, Shield, Settings, Plus } from "lucide-react";
+import { Menu, X, Moon, Sun, Shield, Settings, Plus, LogOut } from "lucide-react";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessages } from "./ChatMessages";
@@ -9,13 +9,20 @@ import { RoomTabs } from "./RoomTabs";
 import { AdminBanner } from "./AdminBanner";
 import { ModerationPanel } from "./ModerationPanel";
 import { RoomManagement } from "./RoomManagement";
+import { useAuth } from "@/hooks/useAuth";
+import { useChatData } from "@/hooks/useChatData";
 
 export const ChatLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showModerationPanel, setShowModerationPanel] = useState(false);
   const [showRoomManagement, setShowRoomManagement] = useState(false);
-  const userRole = 'admin'; // Mock user role
+  const { user, signOut } = useAuth();
+  const { users, rooms, currentRoom, loading } = useChatData();
+
+  // Get current user's role
+  const currentUser = users.find(u => u.id === user?.id);
+  const userRole = currentUser?.role || 'user';
 
   // Mock announcement
   const announcement = {
@@ -32,6 +39,21 @@ export const ChatLayout = () => {
     setIsDarkMode(!isDarkMode);
     document.documentElement.classList.toggle('dark');
   };
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading chat...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex h-screen bg-chat-bg ${isDarkMode ? 'dark' : ''}`}>
@@ -90,6 +112,15 @@ export const ChatLayout = () => {
             >
               {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="hover:bg-muted hover:scale-105 transition-transform text-destructive"
+            >
+              <LogOut className="h-5 w-5" />
+            </Button>
           </div>
         </div>
 
@@ -118,7 +149,7 @@ export const ChatLayout = () => {
         isOpen={showRoomManagement}
         onClose={() => setShowRoomManagement(false)}
         userRole={userRole}
-        currentRoom="general"
+        currentRoom={currentRoom || "general"}
       />
     </div>
   );

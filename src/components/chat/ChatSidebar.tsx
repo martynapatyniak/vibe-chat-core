@@ -3,30 +3,14 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Search, Crown, Shield, Users } from "lucide-react";
-
-interface User {
-  id: string;
-  name: string;
-  avatar: string;
-  status: 'online' | 'away' | 'offline';
-  role: 'admin' | 'moderator' | 'user';
-  country: string;
-}
+import { useChatData } from "@/hooks/useChatData";
 
 interface ChatSidebarProps {
   collapsed: boolean;
 }
 
 export const ChatSidebar = ({ collapsed }: ChatSidebarProps) => {
-  // Mock users data
-  const users: User[] = [
-    { id: '1', name: 'Alex Chen', avatar: '', status: 'online', role: 'admin', country: '🇺🇸' },
-    { id: '2', name: 'Maria Rodriguez', avatar: '', status: 'online', role: 'moderator', country: '🇪🇸' },
-    { id: '3', name: 'John Smith', avatar: '', status: 'away', role: 'user', country: '🇬🇧' },
-    { id: '4', name: 'Yuki Tanaka', avatar: '', status: 'online', role: 'user', country: '🇯🇵' },
-    { id: '5', name: 'Emma Wilson', avatar: '', status: 'offline', role: 'user', country: '🇨🇦' },
-    { id: '6', name: 'Pierre Dubois', avatar: '', status: 'online', role: 'user', country: '🇫🇷' },
-  ];
+  const { users } = useChatData();
 
   const onlineUsers = users.filter(user => user.status === 'online');
   const awayUsers = users.filter(user => user.status === 'away');
@@ -81,17 +65,17 @@ export const ChatSidebar = ({ collapsed }: ChatSidebarProps) => {
                 >
                   <div className="relative">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.avatar} />
+                      <AvatarImage src={user.avatar_url || ""} />
                       <AvatarFallback className="bg-gradient-primary text-primary-foreground text-sm">
-                        {user.name.split(' ').map(n => n[0]).join('')}
+                        {user.username.split(' ').map(n => n[0]).join('').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-status-online border-2 border-chat-sidebar rounded-full"></div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
-                      <span className="text-sm font-medium text-foreground truncate">{user.country}</span>
-                      <span className="text-sm font-medium text-foreground truncate">{user.name}</span>
+                      <span className="text-sm font-medium text-foreground truncate">{user.country_code || '🌐'}</span>
+                      <span className="text-sm font-medium text-foreground truncate">{user.username}</span>
                       {getRoleIcon(user.role)}
                     </div>
                   </div>
@@ -116,17 +100,17 @@ export const ChatSidebar = ({ collapsed }: ChatSidebarProps) => {
                 >
                   <div className="relative">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.avatar} />
+                      <AvatarImage src={user.avatar_url || ""} />
                       <AvatarFallback className="bg-gradient-primary text-primary-foreground text-sm">
-                        {user.name.split(' ').map(n => n[0]).join('')}
+                        {user.username.split(' ').map(n => n[0]).join('').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-status-away border-2 border-chat-sidebar rounded-full"></div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
-                      <span className="text-sm font-medium text-foreground truncate">{user.country}</span>
-                      <span className="text-sm font-medium text-foreground truncate">{user.name}</span>
+                      <span className="text-sm font-medium text-foreground truncate">{user.country_code || '🌐'}</span>
+                      <span className="text-sm font-medium text-foreground truncate">{user.username}</span>
                       {getRoleIcon(user.role)}
                     </div>
                   </div>
@@ -151,17 +135,17 @@ export const ChatSidebar = ({ collapsed }: ChatSidebarProps) => {
                 >
                   <div className="relative">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.avatar} />
+                      <AvatarImage src={user.avatar_url || ""} />
                       <AvatarFallback className="bg-muted text-muted-foreground text-sm">
-                        {user.name.split(' ').map(n => n[0]).join('')}
+                        {user.username.split(' ').map(n => n[0]).join('').toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-status-offline border-2 border-chat-sidebar rounded-full"></div>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
-                      <span className="text-sm font-medium text-muted-foreground truncate">{user.country}</span>
-                      <span className="text-sm font-medium text-muted-foreground truncate">{user.name}</span>
+                      <span className="text-sm font-medium text-muted-foreground truncate">{user.country_code || '🌐'}</span>
+                      <span className="text-sm font-medium text-muted-foreground truncate">{user.username}</span>
                       {getRoleIcon(user.role)}
                     </div>
                   </div>
