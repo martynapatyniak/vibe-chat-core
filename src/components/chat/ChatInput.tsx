@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { 
@@ -16,6 +16,7 @@ import { MentionDropdown } from "./MentionDropdown";
 import { DragDropOverlay } from "./DragDropOverlay";
 import { useChatData } from "@/hooks/useChatData";
 import { useToast } from "@/hooks/use-toast";
+import { validateMessage, sanitizeInput, messageRateLimiter } from "@/lib/validation";
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -24,6 +25,7 @@ export const ChatInput = () => {
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [isSending, setIsSending] = useState(false);
   const [replyTo, setReplyTo] = useState<{
     id: string;
     author: string;
@@ -46,8 +48,36 @@ export const ChatInput = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSend = async () => {
+  // Rate limiting check
+  const isRateLimited = useMemo(() => {
+    return messageRateLimiter.isRateLimited('user'); // In real app, use actual user ID
+  }, []);
+
+  const handleSend = useCallback(async () => {
     if (!message.trim() && attachedFiles.length === 0) return;
+    
+    // Validate message
+    const validation = validateMessage(message);
+    if (!validation.isValid) {
+      toast({
+        title: "Invalid Message",
+        description: validation.error,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Check rate limiting
+    if (isRateLimited) {
+      toast({
+        title: "Rate Limited",
+        description: "You're sending messages too quickly. Please wait a moment.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSending(true);
     
     try {
       if (attachedFiles.length > 0) {
@@ -58,7 +88,11 @@ export const ChatInput = () => {
         return;
       }
       
-      await sendMessage(message.trim(), replyTo?.id);
+      // Sanitize and send message
+      const sanitizedMessage = sanitizeInput(message);
+      messageRateLimiter.recordAttempt('user'); // In real app, use actual user ID
+      
+      await sendMessage(sanitizedMessage, replyTo?.id);
       
       setMessage("");
       setAttachedFiles([]);
@@ -67,9 +101,15 @@ export const ChatInput = () => {
         textareaRef.current.style.height = 'auto';
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      toast({
+        title: "Message Failed",
+        description: "Unable to send message. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
     }
-  };
+  }, [message, attachedFiles, replyTo, sendMessage, toast, isRateLimited]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -317,13 +357,17 @@ export const ChatInput = () => {
         {/* Send button */}
         <Button
           onClick={handleSend}
-          disabled={(!message.trim() && attachedFiles.length === 0) || isOverLimit}
+          disabled={(!message.trim() && attachedFiles.length === 0) || isOverLimit || isSending || isRateLimited}
           className={cn(
             "bg-gradient-primary hover:bg-primary-hover self-end mb-2 transition-all",
             "hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           )}
         >
-          <Send className="h-4 w-4" />
+          {isSending ? (
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
         </Button>
 
         {/* Hidden file input */}

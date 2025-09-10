@@ -45,9 +45,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               const { error } = await supabase.rpc('update_user_last_seen', {
                 user_uuid: session.user.id
               });
-              if (error) console.error('Error updating user status:', error);
+              if (error) {
+                // Silently handle error - user status update is not critical
+              }
             } catch (error) {
-              console.error('Error updating user status:', error);
+              // Silently handle error - user status update is not critical
             }
           }, 0);
         }
@@ -63,7 +65,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                   .eq('id', user.id);
               }
             } catch (error) {
-              console.error('Error updating user status on signout:', error);
+              // Silently handle error - user status update is not critical
             }
           }, 0);
         }

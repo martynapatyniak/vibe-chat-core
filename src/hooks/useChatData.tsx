@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { useToast } from "./use-toast";
@@ -62,8 +62,8 @@ export const useChatData = () => {
   const [currentRoom, setCurrentRoom] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch users
-  const fetchUsers = async () => {
+  // Memoized fetch functions for better performance
+  const fetchUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -74,17 +74,16 @@ export const useChatData = () => {
       if (error) throw error;
       setUsers(data || []);
     } catch (error: any) {
-      console.error('Error fetching users:', error);
       toast({
         title: "Error",
-        description: "Failed to load users",
+        description: "Failed to load users. Please refresh the page.",
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
 
-  // Fetch rooms
-  const fetchRooms = async () => {
+  // Memoized fetch rooms function
+  const fetchRooms = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('rooms')
@@ -99,18 +98,18 @@ export const useChatData = () => {
         setCurrentRoom(data[0].id);
       }
     } catch (error: any) {
-      console.error('Error fetching rooms:', error);
       toast({
-        title: "Error",
-        description: "Failed to load rooms",
+        title: "Error", 
+        description: "Failed to load chat rooms. Please try again.",
         variant: "destructive",
       });
     }
-  };
+  }, [currentRoom, toast]);
 
-  // Fetch messages for current room
-  const fetchMessages = async (roomId: string) => {
+  // Memoized fetch messages function with better error handling
+  const fetchMessages = useCallback(async (roomId: string) => {
     try {
+      // Use pagination for better performance (limit to last 100 messages)
       const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -124,68 +123,75 @@ export const useChatData = () => {
         `)
         .eq('room_id', roomId)
         .eq('is_deleted', false)
-        .order('created_at');
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (error) throw error;
 
-      // Fetch reactions for all messages
-      const messageIds = data?.map(m => m.id) || [];
-      const { data: reactionsData } = await supabase
-        .from('message_reactions')
-        .select('message_id, emoji, user_id, users(username)')
-        .in('message_id', messageIds);
+      // Reverse to show oldest first
+      const sortedMessages = (data || []).reverse();
 
-      // Group reactions by message
-      const messageReactions: Record<string, any[]> = {};
-      reactionsData?.forEach(reaction => {
-        if (!messageReactions[reaction.message_id]) {
-          messageReactions[reaction.message_id] = [];
-        }
-        messageReactions[reaction.message_id].push(reaction);
-      });
+      // Fetch reactions for all messages (optimized query)
+      const messageIds = sortedMessages.map(m => m.id);
+      if (messageIds.length > 0) {
+        const { data: reactionsData } = await supabase
+          .from('message_reactions')
+          .select('message_id, emoji, user_id, users(username)')
+          .in('message_id', messageIds);
 
-      // Format messages with reactions
-      const formattedMessages = data?.map(message => {
-        const reactions = messageReactions[message.id] || [];
-        const groupedReactions = reactions.reduce((acc, reaction) => {
-          const existing = acc.find((r: any) => r.emoji === reaction.emoji);
-          if (existing) {
-            existing.count++;
-            existing.users.push(reaction.users.username);
-          } else {
-            acc.push({
-              emoji: reaction.emoji,
-              count: 1,
-              users: [reaction.users.username]
-            });
+        // Group reactions by message (optimized)
+        const messageReactions: Record<string, any[]> = {};
+        reactionsData?.forEach(reaction => {
+          if (!messageReactions[reaction.message_id]) {
+            messageReactions[reaction.message_id] = [];
           }
-          return acc;
-        }, []);
+          messageReactions[reaction.message_id].push(reaction);
+        });
 
-        return {
-          ...message,
-          reply_to: message.reply_to && message.reply_to.length > 0 ? {
-            id: message.reply_to[0].id,
-            content: message.reply_to[0].content,
-            user: message.reply_to[0].user
-          } : undefined,
-          reactions: groupedReactions
-        };
-      }) || [];
+        // Format messages with reactions (optimized)
+        const formattedMessages = sortedMessages.map(message => {
+          const reactions = messageReactions[message.id] || [];
+          const groupedReactions = reactions.reduce((acc, reaction) => {
+            const existing = acc.find((r: any) => r.emoji === reaction.emoji);
+            if (existing) {
+              existing.count++;
+              existing.users.push(reaction.users.username);
+            } else {
+              acc.push({
+                emoji: reaction.emoji,
+                count: 1,
+                users: [reaction.users.username]
+              });
+            }
+            return acc;
+          }, []);
 
-      setMessages(formattedMessages);
+          return {
+            ...message,
+            reply_to: message.reply_to && message.reply_to.length > 0 ? {
+              id: message.reply_to[0].id,
+              content: message.reply_to[0].content,
+              user: message.reply_to[0].user
+            } : undefined,
+            reactions: groupedReactions
+          };
+        });
+
+        setMessages(formattedMessages);
+      } else {
+        setMessages([]);
+      }
     } catch (error: any) {
-      console.error('Error fetching messages:', error);
       toast({
         title: "Error",
-        description: "Failed to load messages",
+        description: "Failed to load messages. Please refresh the chat.",
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
 
-  // Send message
-  const sendMessage = async (content: string, replyToId?: string) => {
+  // Optimized send message function
+  const sendMessage = useCallback(async (content: string, replyToId?: string) => {
     if (!user || !currentRoom || !content.trim()) return;
 
     try {
@@ -200,17 +206,16 @@ export const useChatData = () => {
 
       if (error) throw error;
     } catch (error: any) {
-      console.error('Error sending message:', error);
       toast({
-        title: "Error",
-        description: "Failed to send message",
+        title: "Message Failed",
+        description: "Your message could not be sent. Please try again.",
         variant: "destructive",
       });
     }
-  };
+  }, [user, currentRoom, toast]);
 
-  // Add reaction
-  const addReaction = async (messageId: string, emoji: string) => {
+  // Optimized add reaction function
+  const addReaction = useCallback(async (messageId: string, emoji: string) => {
     if (!user) return;
 
     try {
@@ -224,14 +229,13 @@ export const useChatData = () => {
 
       if (error) throw error;
     } catch (error: any) {
-      console.error('Error adding reaction:', error);
       toast({
-        title: "Error",
-        description: "Failed to add reaction",
+        title: "Reaction Failed",
+        description: "Unable to add reaction. Please try again.",
         variant: "destructive",
       });
     }
-  };
+  }, [user, toast]);
 
   // Set up real-time subscriptions
   useEffect(() => {
@@ -316,7 +320,8 @@ export const useChatData = () => {
     }
   }, [currentRoom]);
 
-  return {
+  // Memoized return object for better performance
+  const returnValue = useMemo(() => ({
     users,
     rooms,
     messages,
@@ -328,5 +333,18 @@ export const useChatData = () => {
     fetchUsers,
     fetchRooms,
     fetchMessages
-  };
+  }), [
+    users,
+    rooms, 
+    messages,
+    currentRoom,
+    loading,
+    sendMessage,
+    addReaction,
+    fetchUsers,
+    fetchRooms,
+    fetchMessages
+  ]);
+
+  return returnValue;
 };
