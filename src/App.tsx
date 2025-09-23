@@ -1,32 +1,30 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import NotFound from "./pages/NotFound";
+// src/App.tsx
+import { useAuth } from '@/hooks/useAuth'
+import { AuthForm } from '@/components/AuthForm'
+import { ChatLayout } from '@/components/chat/ChatLayout'
 
-const queryClient = new QueryClient();
+const App = () => {
+  const { user, loading } = useAuth()
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+  // Pokazuj loader podczas ładowania
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="text-gray-600 text-lg">Loading ChatFlow...</p>
+        </div>
+      </div>
+    )
+  }
 
-export default App;
+  // Jeśli użytkownik nie jest zalogowany, pokaż formularz logowania
+  if (!user) {
+    return <AuthForm />
+  }
+
+  // Jeśli użytkownik jest zalogowany, pokaż chat
+  return <ChatLayout />
+}
+
+export default App
