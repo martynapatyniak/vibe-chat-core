@@ -1,12 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageItem } from "./MessageItem";
 import { TypingIndicator } from "./TypingIndicator";
 import { useChatData } from "@/hooks/useChatData";
+import { useAuth } from "@/hooks/useAuth";
 
-export const ChatMessages = () => {
+interface ChatMessagesProps {
+  onReply?: (message: any) => void;
+  onQuote?: (message: any) => void;
+}
+
+export const ChatMessages = ({ onReply, onQuote }: ChatMessagesProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { messages, loading } = useChatData();
+  const { user } = useAuth();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -80,6 +87,9 @@ export const ChatMessages = () => {
                 message={formattedMessage}
                 showAvatar={showAvatar}
                 className="animate-slide-in"
+                onReply={onReply}
+                onQuote={onQuote}
+                currentUserId={user?.id}
               />
             );
           })}

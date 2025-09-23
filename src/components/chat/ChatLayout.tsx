@@ -12,11 +12,52 @@ import { RoomManagement } from "./RoomManagement";
 import { useAuth } from "@/hooks/useAuth";
 import { useChatData } from "@/hooks/useChatData";
 
+interface Message {
+  id: string;
+  content: string;
+  author: {
+    name: string;
+    avatar: string;
+    role: 'admin' | 'moderator' | 'user';
+    country: string;
+  };
+  timestamp: Date;
+  edited?: boolean;
+  replyTo?: {
+    id: string;
+    author: string;
+    content: string;
+  };
+  reactions?: {
+    emoji: string;
+    count: number;
+    users: string[];
+  }[];
+  attachments?: {
+    id: string;
+    name: string;
+    url: string;
+    type: 'image' | 'file' | 'voice' | 'video';
+    size?: number;
+  }[];
+}
+
 export const ChatLayout = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showModerationPanel, setShowModerationPanel] = useState(false);
   const [showRoomManagement, setShowRoomManagement] = useState(false);
+  const [replyTo, setReplyTo] = useState<{
+    id: string;
+    author: string;
+    content: string;
+  } | null>(null);
+  const [quotedMessage, setQuotedMessage] = useState<{
+    id: string;
+    author: string;
+    content: string;
+  } | null>(null);
+  
   const { user, signOut } = useAuth();
   const { users, rooms, currentRoom, loading } = useChatData();
 
@@ -42,6 +83,22 @@ export const ChatLayout = () => {
 
   const handleSignOut = async () => {
     await signOut();
+  };
+
+  const handleReply = (message: Message) => {
+    setReplyTo({
+      id: message.id,
+      author: message.author.name,
+      content: message.content
+    });
+  };
+
+  const handleQuote = (message: Message) => {
+    setQuotedMessage({
+      id: message.id,
+      author: message.author.name,
+      content: message.content
+    });
   };
 
   if (loading) {
@@ -129,12 +186,17 @@ export const ChatLayout = () => {
 
         {/* Messages Area with better spacing */}
         <div className="flex-1 overflow-hidden bg-chat-bg">
-          <ChatMessages />
+          <ChatMessages onReply={handleReply} onQuote={handleQuote} />
         </div>
 
         {/* Enhanced Input Area */}
         <div className="bg-chat-input border-t border-border p-6">
-          <ChatInput />
+          <ChatInput 
+            replyTo={replyTo}
+            quotedMessage={quotedMessage}
+            onClearReply={() => setReplyTo(null)}
+            onClearQuote={() => setQuotedMessage(null)}
+          />
         </div>
       </div>
 

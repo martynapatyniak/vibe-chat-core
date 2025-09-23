@@ -237,6 +237,85 @@ export const useChatData = () => {
     }
   }, [user, toast]);
 
+  // Edit message function
+  const editMessage = useCallback(async (messageId: string, newContent: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({
+          content: newContent.trim(),
+          is_edited: true,
+          edited_at: new Date().toISOString()
+        })
+        .eq('id', messageId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        title: "Edit Failed",
+        description: "Unable to edit message. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [user, toast]);
+
+  // Delete message function (soft delete)
+  const deleteMessage = useCallback(async (messageId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({
+          is_deleted: true,
+          content: '[Message deleted]'
+        })
+        .eq('id', messageId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        title: "Delete Failed",
+        description: "Unable to delete message. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [user, toast]);
+
+  // Upload file function
+  const uploadFile = useCallback(async (file: File): Promise<string | null> => {
+    if (!user) return null;
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      const bucket = file.type.startsWith('image/') ? 'chat-images' : 'chat-files';
+
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error: any) {
+      toast({
+        title: "Upload Failed",
+        description: "Unable to upload file. Please try again.",
+        variant: "destructive",
+      });
+      return null;
+    }
+  }, [user, toast]);
+
   // Set up real-time subscriptions
   useEffect(() => {
     if (!user) return;
@@ -330,6 +409,9 @@ export const useChatData = () => {
     setCurrentRoom,
     sendMessage,
     addReaction,
+    editMessage,
+    deleteMessage,
+    uploadFile,
     fetchUsers,
     fetchRooms,
     fetchMessages
@@ -341,6 +423,9 @@ export const useChatData = () => {
     loading,
     sendMessage,
     addReaction,
+    editMessage,
+    deleteMessage,
+    uploadFile,
     fetchUsers,
     fetchRooms,
     fetchMessages
