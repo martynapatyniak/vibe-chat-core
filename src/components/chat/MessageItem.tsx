@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { 
   MoreHorizontal, 
   Reply, 
@@ -16,9 +17,13 @@ import {
   Flag,
   ZoomIn,
   Volume2,
-  VolumeX
+  VolumeX,
+  Check,
+  X,
+  Smile
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useChatData } from "@/hooks/useChatData";
 
 interface Message {
   id: string;
@@ -54,11 +59,19 @@ interface MessageItemProps {
   message: Message;
   showAvatar: boolean;
   className?: string;
+  onReply?: (message: Message) => void;
+  onQuote?: (message: Message) => void;
+  currentUserId?: string;
 }
 
-export const MessageItem = ({ message, showAvatar, className }: MessageItemProps) => {
+export const MessageItem = ({ message, showAvatar, className, onReply, onQuote, currentUserId }: MessageItemProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(message.content);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
+  const { addReaction, editMessage, deleteMessage } = useChatData();
 
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -87,6 +100,26 @@ export const MessageItem = ({ message, showAvatar, className }: MessageItemProps
     setIsPlaying(!isPlaying);
     // Here you would implement actual audio playback
   };
+
+  const handleEdit = async () => {
+    if (editContent.trim() && editContent !== message.content) {
+      await editMessage(message.id, editContent);
+      setIsEditing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to delete this message?')) {
+      await deleteMessage(message.id);
+    }
+  };
+
+  const handleReaction = async (emoji: string) => {
+    await addReaction(message.id, emoji);
+    setShowEmojiPicker(false);
+  };
+
+  const isOwnMessage = currentUserId === message.id;
 
   return (
     <div
@@ -150,7 +183,30 @@ export const MessageItem = ({ message, showAvatar, className }: MessageItemProps
 
           {/* Message text */}
           <div className="text-sm text-foreground leading-relaxed mb-2">
-            {message.content}
+            {isEditing ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') handleEdit();
+                    if (e.key === 'Escape') setIsEditing(false);
+                  }}
+                  className="text-sm"
+                  autoFocus
+                />
+                <Button size="sm" onClick={handleEdit} variant="ghost">
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button size="sm" onClick={() => setIsEditing(false)} variant="ghost">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <span className={cn(message.content === '[Message deleted]' && "italic text-muted-foreground")}>
+                {message.content}
+              </span>
+            )}
           </div>
 
           {/* Attachments */}
@@ -268,10 +324,36 @@ export const MessageItem = ({ message, showAvatar, className }: MessageItemProps
                   key={index}
                   variant="ghost"
                   size="sm"
+                  onClick={() => handleReaction(reaction.emoji)}
                   className="h-6 px-2 hover:bg-muted text-xs border border-border/50 hover:border-border"
                 >
                   <span className="mr-1">{reaction.emoji}</span>
                   <span>{reaction.count}</span>
+                </Button>
+              ))}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="h-6 px-2 hover:bg-muted text-xs border border-border/50 hover:border-border"
+              >
+                <Smile className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+
+          {/* Emoji picker */}
+          {showEmojiPicker && (
+            <div className="flex gap-1 mb-2 p-2 bg-muted rounded-lg">
+              {['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '🔥'].map((emoji) => (
+                <Button
+                  key={emoji}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleReaction(emoji)}
+                  className="h-8 w-8 p-0 hover:bg-background"
+                >
+                  {emoji}
                 </Button>
               ))}
             </div>
@@ -279,23 +361,57 @@ export const MessageItem = ({ message, showAvatar, className }: MessageItemProps
         </div>
 
         {/* Message actions */}
-        {isHovered && (
+        {isHovered && !isEditing && (
           <div className="absolute top-2 right-4 flex items-center gap-1 bg-chat-header shadow-soft border border-border rounded-md p-1">
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-muted">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-6 w-6 p-0 hover:bg-muted"
+              onClick={() => onReply?.(message)}
+              title="Reply"
+            >
               <Reply className="h-3 w-3" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-muted">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-6 w-6 p-0 hover:bg-muted"
+              onClick={() => onQuote?.(message)}
+              title="Quote"
+            >
               <Flag className="h-3 w-3" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-muted">
-              <Edit className="h-3 w-3" />
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-6 w-6 p-0 hover:bg-muted"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              title="Add reaction"
+            >
+              <Smile className="h-3 w-3" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-muted">
-              <MoreHorizontal className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground">
-              <Trash2 className="h-3 w-3" />
-            </Button>
+            {isOwnMessage && (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0 hover:bg-muted"
+                  onClick={() => setIsEditing(true)}
+                  title="Edit"
+                >
+                  <Edit className="h-3 w-3" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                  onClick={handleDelete}
+                  title="Delete"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </>
+            )}
           </div>
         )}
       </div>

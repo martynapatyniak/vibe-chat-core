@@ -21,16 +21,26 @@ import { validateMessage, sanitizeInput, messageRateLimiter } from "@/lib/valida
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-export const ChatInput = () => {
+interface ChatInputProps {
+  replyTo?: {
+    id: string;
+    author: string;
+    content: string;
+  };
+  quotedMessage?: {
+    id: string;
+    author: string;
+    content: string;
+  };
+  onClearReply?: () => void;
+  onClearQuote?: () => void;
+}
+
+export const ChatInput = ({ replyTo, quotedMessage, onClearReply, onClearQuote }: ChatInputProps = {}) => {
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isSending, setIsSending] = useState(false);
-  const [replyTo, setReplyTo] = useState<{
-    id: string;
-    author: string;
-    content: string;
-  } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isValidDrop, setIsValidDrop] = useState(false);
   const [mentionDropdown, setMentionDropdown] = useState<{
@@ -43,7 +53,7 @@ export const ChatInput = () => {
     position: { top: 0, left: 0 }
   });
 
-  const { sendMessage, users } = useChatData();
+  const { sendMessage, users, uploadFile } = useChatData();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -80,23 +90,28 @@ export const ChatInput = () => {
     setIsSending(true);
     
     try {
-      if (attachedFiles.length > 0) {
-        toast({
-          title: "File upload",
-          description: "File upload functionality coming soon!",
-        });
-        return;
+      let messageContent = sanitizeInput(message);
+      let fileUrl = null;
+      
+      // Handle quoted message
+      if (quotedMessage) {
+        messageContent = `> @${quotedMessage.author}: ${quotedMessage.content}\n\n${messageContent}`;
       }
       
-      // Sanitize and send message
-      const sanitizedMessage = sanitizeInput(message);
+      // Handle file upload
+      if (attachedFiles.length > 0) {
+        fileUrl = await uploadFile(attachedFiles[0]);
+        if (!fileUrl) return;
+      }
+      
       messageRateLimiter.recordAttempt('user'); // In real app, use actual user ID
       
-      await sendMessage(sanitizedMessage, replyTo?.id);
+      await sendMessage(messageContent, replyTo?.id);
       
       setMessage("");
       setAttachedFiles([]);
-      setReplyTo(null);
+      onClearReply?.();
+      onClearQuote?.();
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
@@ -109,7 +124,7 @@ export const ChatInput = () => {
     } finally {
       setIsSending(false);
     }
-  }, [message, attachedFiles, replyTo, sendMessage, toast, isRateLimited]);
+  }, [message, attachedFiles, replyTo, quotedMessage, sendMessage, uploadFile, toast, isRateLimited]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -226,7 +241,29 @@ export const ChatInput = () => {
     }
   };
 
-  // ... keep existing code (drag and drop handlers and other functions)
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    setIsValidDrop(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileUpload(e.dataTransfer.files);
+  };
 
   const characterCount = message.length;
   const isOverLimit = characterCount > MAX_MESSAGE_LENGTH;
@@ -234,7 +271,10 @@ export const ChatInput = () => {
   return (
     <div 
       className="space-y-3 relative"
-      // ... keep existing drag handlers
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
       <DragDropOverlay isDragging={isDragging} isValidDrop={isValidDrop} />
       
@@ -248,7 +288,25 @@ export const ChatInput = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setReplyTo(null)}
+            onClick={onClearReply}
+            className="hover:bg-background"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Quoted message */}
+      {quotedMessage && (
+        <div className="flex items-center gap-2 p-3 bg-muted rounded-t-lg border-l-4 border-secondary animate-slide-in">
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-muted-foreground">Quoting @{quotedMessage.author}</div>
+            <div className="text-sm text-foreground truncate">{quotedMessage.content}</div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearQuote}
             className="hover:bg-background"
           >
             <X className="h-4 w-4" />
@@ -357,7 +415,7 @@ export const ChatInput = () => {
         {/* Send button */}
         <Button
           onClick={handleSend}
-          disabled={(!message.trim() && attachedFiles.length === 0) || isOverLimit || isSending || isRateLimited}
+          disabled={(!message.trim() && attachedFiles.length === 0 && !quotedMessage) || isOverLimit || isSending || isRateLimited}
           className={cn(
             "bg-gradient-primary hover:bg-primary-hover self-end mb-2 transition-all",
             "hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
