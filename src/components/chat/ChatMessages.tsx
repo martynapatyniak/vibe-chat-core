@@ -1,90 +1,104 @@
-import { useEffect, useRef } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageItem } from "./MessageItem";
-import { TypingIndicator } from "./TypingIndicator";
-import { useChatData } from "@/hooks/useChatData";
+// src/components/chat/ChatMessages.tsx
+'use client';
 
-export const ChatMessages = () => {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const { messages, loading } = useChatData();
+import React, { useEffect, useRef, useState } from 'react';
+import { supabase } from '@/supabase';
 
-  // Auto-scroll to bottom when new messages arrive
+type DbMessage = {
+  id: string;
+  room_id: string;
+  author_id: string | null;
+  content: string;
+  created_at: string;
+};
+
+interface Props {
+  roomId: string;
+}
+
+const ChatMessages: React.FC<Props> = ({ roomId }) => {
+  const [messages, setMessages] = useState<DbMessage[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const endRef = useRef<HTMLDivElement | null>(null);
+
+  // autoscroll
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-2">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
-          <p className="text-sm text-muted-foreground">Loading messages...</p>
-        </div>
-      </div>
-    );
-  }
+  // bieżący user
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
 
-  if (messages.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center space-y-2">
-          <p className="text-muted-foreground">No messages yet</p>
-          <p className="text-sm text-muted-foreground">Start a conversation!</p>
-        </div>
-      </div>
-    );
-  }
+  // fetch + realtime sub
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('id, room_id, author_id, content, created_at')
+        .eq('room_id', roomId)
+        .order('created_at', { ascending: true })
+        .limit(200);
+
+      if (!mounted) return;
+      if (error) {
+        console.error('[messages] fetch error:', error);
+        setMessages([]);
+        return;
+      }
+      setMessages((data ?? []) as DbMessage[]);
+    };
+
+    fetchMessages();
+
+    const channel = supabase
+      .channel(`room:${roomId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomId}` },
+        (payload) => setMessages((prev) => [...prev, payload.new as DbMessage])
+      )
+      .subscribe();
+
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [roomId]);
 
   return (
-    <div className="relative h-full">
-      <ScrollArea ref={scrollRef} className="h-full">
-        <div className="flex flex-col gap-1 p-4">
-          {messages.map((message, index) => {
-            const showAvatar = index === 0 || 
-              messages[index - 1].user_id !== message.user_id ||
-              (new Date(message.created_at).getTime() - new Date(messages[index - 1].created_at).getTime()) > 5 * 60 * 1000;
-            
-            // Format message for MessageItem component
-            const formattedMessage = {
-              id: message.id,
-              content: message.content,
-              author: {
-                name: message.user.username,
-                avatar: message.user.avatar_url || "",
-                role: message.user.role,
-                country: message.user.country_code || "🌐"
-              },
-              timestamp: new Date(message.created_at),
-              edited: message.is_edited,
-              replyTo: message.reply_to ? {
-                id: message.reply_to.id,
-                author: message.reply_to.user.username,
-                content: message.reply_to.content
-              } : undefined,
-              reactions: message.reactions,
-              attachments: message.file_url ? [{
-                id: message.id + '_file',
-                name: message.file_url.split('/').pop() || 'file',
-                url: message.file_url,
-                type: (message.message_type === 'file' ? 'file' : 
-                      message.message_type === 'voice' ? 'voice' : 'image') as 'image' | 'file' | 'voice',
-                size: undefined
-              }] : undefined
-            };
-            
-            return (
-              <MessageItem
-                key={message.id}
-                message={formattedMessage}
-                showAvatar={showAvatar}
-                className="animate-slide-in"
-              />
-            );
-          })}
+    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {messages.length === 0 ? (
+        <div className="text-center text-gray-500 mt-8">
+          No messages yet
+          <br />
+          Start a conversation!
         </div>
-      </ScrollArea>
+      ) : (
+        messages.map((m) => {
+          const isOwn = currentUserId && m.author_id === currentUserId;
+          return (
+            <div key={m.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-3`}>
+              <div
+                className={`px-4 py-2 rounded-2xl shadow-sm ${
+                  isOwn ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'
+                }`}
+              >
+                <div className="whitespace-pre-wrap break-words">{m.content}</div>
+                <div className={`mt-1 text-xs opacity-70 ${isOwn ? 'text-white' : 'text-gray-600'}`}>
+                  {new Date(m.created_at).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            </div>
+          );
+        })
+      )}
+      <div ref={endRef} />
     </div>
   );
 };
+
+export default ChatMessages;
