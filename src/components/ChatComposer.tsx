@@ -2,10 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useRoomSettings } from '../hooks/useRoomSettings';
 import { useUserMentionSearch } from '../hooks/useUserMentionSearch';
 import { MentionsDropdown } from './MentionsDropdown';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '../hooks/useAuth';
 
 export const ChatComposer: React.FC<{ roomId: string; onSend?: () => void }> = ({ roomId, onSend }) => {
   const { roomSettings } = useRoomSettings(roomId);
+  const { user } = useAuth();
   const [text, setText] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const { results, setQuery } = useUserMentionSearch();
@@ -42,20 +43,19 @@ export const ChatComposer: React.FC<{ roomId: string; onSend?: () => void }> = (
   };
 
   const handleSend = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() || !user) return;
     const maxLen = roomSettings?.max_message_length ?? 2000;
     if (text.length > maxLen) {
       alert(`Message too long (max ${maxLen} chars)`);
       return;
     }
 
-    const payload = {
+    const { error } = await supabase.from('messages').insert({
       room_id: roomId,
-      author_id: supabase.auth.user()?.id,
+      user_id: user.id,
       content: text,
-    };
-
-    const { data, error } = await supabase.from('messages').insert(payload);
+    });
+    
     if (error) {
       console.error('send error', error);
     } else {
