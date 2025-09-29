@@ -1,0 +1,3 @@
+- Hybrid (SPA + Supabase). IC wystawia JWT (RS256), Supabase Edge Function wymienia go na sesję.
+- Szybkie MVP, jedno źródło realtime, łatwa migracja do Native później.
+- Potrzebny endpoint w IC i funkcja w Supabase; migracja `user_profiles`.
