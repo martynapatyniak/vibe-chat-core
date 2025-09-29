@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useRoomSettings } from '../hooks/useRoomSettings';
 import { useUserMentionSearch } from '../hooks/useUserMentionSearch';
 import { MentionsDropdown } from './MentionsDropdown';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '@/integrations/supabase/client';
 
 export const ChatComposer: React.FC<{ roomId: string; onSend?: () => void }> = ({ roomId, onSend }) => {
   const { roomSettings } = useRoomSettings(roomId);
