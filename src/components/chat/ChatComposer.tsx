@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+
 import MentionsDropdown from "@/features/chat/mentions/MentionsDropdown";
 import { useUserMentionSearch } from "@/features/chat/mentions/useUserMentionSearch";
+
+import { sanitizeMessage } from "@/features/chat/sanitize";
 import { supabase } from "@/lib/supabaseClient";
 
 type MessageLite = {
@@ -17,13 +20,26 @@ type Props = {
   roomId: string;
   onSend?: (payload: { content: string; quoted_message_id?: string | null }) => Promise<void> | void;
   maxLen?: number;
+  // konfiguracja anti-flood (opcjonalnie nadpisywana propsami)
+  floodWindowSec?: number; // np. 60s
+  floodMaxMsgs?: number;   // np. 20 wiadomości / okno
 };
 
 const MAX_LEN_DEFAULT = 2000;
+const FLOOD_WINDOW_DEFAULT = 60;
+const FLOOD_MAX_DEFAULT = 20;
 
-export default function ChatComposer({ icMemberId, roomId, onSend, maxLen = MAX_LEN_DEFAULT }: Props) {
+export default function ChatComposer({
+  icMemberId,
+  roomId,
+  onSend,
+  maxLen = MAX_LEN_DEFAULT,
+  floodWindowSec = FLOOD_WINDOW_DEFAULT,
+  floodMaxMsgs = FLOOD_MAX_DEFAULT,
+}: Props) {
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
+  const [floodDenied, setFloodDenied] = useState<string | null>(null);
 
   // cytowanie — zarządzane lokalnie, ustawiane eventem z ChatMessages
   const [quote, setQuote] = useState<MessageLite | null>(null);
@@ -46,7 +62,7 @@ export default function ChatComposer({ icMemberId, roomId, onSend, maxLen = MAX_
     return () => window.removeEventListener("chat:set-quote", handler as any);
   }, []);
 
-  // mentions — wykrywanie tokena
+  // wykrywanie tokena @mention pod caretem
   const currentMention = useMemo(() => {
     const el = taRef.current;
     if (!el) return null;
@@ -64,7 +80,7 @@ export default function ChatComposer({ icMemberId, roomId, onSend, maxLen = MAX_
   const { results } = useUserMentionSearch(q);
 
   useEffect(() => {
-    setMentionOpen(!!currentMention && q.length > 0 && (results?.length ?? 0) >= 0);
+    setMentionOpen(!!currentMention && q.length > 0 && (results?.length ?? 0) > 0);
     setHighlight(0);
   }, [currentMention, q, results?.length]);
 
@@ -114,18 +130,51 @@ export default function ChatComposer({ icMemberId, roomId, onSend, maxLen = MAX_
 
   const clearQuote = () => setQuote(null);
 
+  // Anti-flood – sprawdzenie w SQL (RPC can_post_now)
+  const canPostNow = async () => {
+    try {
+      const { data, error } = await supabase.rpc("can_post_now", {
+        p_ic_id: icMemberId,
+        p_window_seconds: floodWindowSec,
+        p_max: floodMaxMsgs,
+      });
+      if (error) {
+        console.error("can_post_now error:", error);
+        // ostrożnie: w razie problemów backendowych nie blokujemy – ale zwróćmy true
+        return true;
+      }
+      return !!data; // boolean z funkcji
+    } catch (e) {
+      console.error(e);
+      return true;
+    }
+  };
+
   const handleSend = async () => {
     if (sending) return;
-    const trimmed = value.trim();
-    if (!trimmed || overLimit) return;
+    const trimmedRaw = value.trim();
+    if (!trimmedRaw || overLimit) return;
+
+    // sanitizacja
+    const trimmed = sanitizeMessage ? sanitizeMessage(trimmedRaw) : trimmedRaw;
 
     setSending(true);
+    setFloodDenied(null);
     try {
-      // Jeśli masz własny backend onSend – użyj go:
+      // Anti-flood guard
+      const ok = await canPostNow();
+      if (!ok) {
+        setFloodDenied(
+          `Za dużo wiadomości w krótkim czasie. Spróbuj ponownie za chwilę (okno ${floodWindowSec}s, max ${floodMaxMsgs}).`
+        );
+        return;
+      }
+
+      // Jeśli masz własny backend:
       if (onSend) {
         await onSend({ content: trimmed, quoted_message_id: quote?.id ?? null });
       } else {
-        // Minimalny zapis do Supabase (tablica "messages") — dopasuj do swojego schematu
+        // Minimalny insert do Supabase (dopasuj nazwy kolumn do swojej tabeli "messages")
         const payload = {
           content: trimmed,
           room_id: roomId,
@@ -133,11 +182,16 @@ export default function ChatComposer({ icMemberId, roomId, onSend, maxLen = MAX_
           quoted_message_id: quote?.id ?? null,
         };
         const { error } = await supabase.from("messages").insert(payload);
-        if (error) console.error(error);
+        if (error) {
+          console.error(error);
+          setFloodDenied("Nie udało się wysłać wiadomości. Spróbuj ponownie.");
+          return;
+        }
       }
+
       setValue("");
       setQuote(null);
-      // autoscroll: ChatMessages subskrybuje realtime i przewinie
+      // autoscroll zrobi ChatMessages po realtime
     } finally {
       setSending(false);
     }
@@ -148,10 +202,10 @@ export default function ChatComposer({ icMemberId, roomId, onSend, maxLen = MAX_
       {/* BOX Z CYTATEM */}
       {quote && (
         <div className="mb-2 rounded border bg-muted/40 px-3 py-2 text-sm">
-          <div className="text-xs text-muted-foreground mb-1">
+          <div className="mb-1 text-xs text-muted-foreground">
             Cytujesz <strong>{quote.author_name ?? "Użytkownik"}</strong>:
           </div>
-          <div className="whitespace-pre-wrap break-words line-clamp-3">{quote.content}</div>
+          <div className="line-clamp-3 whitespace-pre-wrap break-words">{quote.content}</div>
           <button className="mt-1 text-xs text-red-600 hover:underline" onClick={clearQuote}>
             usuń cytat ✖
           </button>
@@ -201,6 +255,12 @@ export default function ChatComposer({ icMemberId, roomId, onSend, maxLen = MAX_
           />
         )}
       </div>
+
+      {floodDenied && (
+        <div className="mt-2 text-xs text-amber-600">
+          {floodDenied}
+        </div>
+      )}
 
       <div className="mt-1 text-[11px] text-muted-foreground">
         Wskazówka: wpisz <span className="font-mono">@</span>, żeby oznaczyć użytkownika. Enter – wyślij, Shift+Enter – nowa linia.
