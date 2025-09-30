@@ -1,3 +1,4 @@
+import { countryFlag, rankLabel } from "@/features/users/userBadges";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { updateMessage, deleteMessage } from "@/features/chat/useMessageActions";
