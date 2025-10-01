@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MessageCircle, Mail, Lock, User, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { validateEmail, validateUsername } from "@/lib/validation";
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -28,18 +29,34 @@ const Auth = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (signUpData.password !== signUpData.confirmPassword) {
-      setError("Passwords do not match");
+    setError("");
+
+    // Validate email
+    const emailValidation = validateEmail(signUpData.email);
+    if (!emailValidation.isValid) {
+      setError(emailValidation.error || "Invalid email");
       return;
     }
-    
+
+    // Validate username
+    const usernameValidation = validateUsername(signUpData.username);
+    if (!usernameValidation.isValid) {
+      setError(usernameValidation.error || "Invalid username");
+      return;
+    }
+
+    // Validate password
     if (signUpData.password.length < 6) {
       setError("Password must be at least 6 characters");
       return;
     }
+    
+    if (signUpData.password !== signUpData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
 
     setIsLoading(true);
-    setError("");
 
     try {
       const { error } = await supabase.auth.signUp({
@@ -74,8 +91,16 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError("");
+
+    // Validate email format
+    const emailValidation = validateEmail(signInData.email);
+    if (!emailValidation.isValid) {
+      setError(emailValidation.error || "Invalid email");
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
