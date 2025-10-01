@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, Moon, Sun, Shield, Settings, Plus, LogOut } from "lucide-react";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatHeader } from "./ChatHeader";
-import { ChatMessages } from "./ChatMessages";
+import ChatMessages from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
 import { RoomTabs } from "./RoomTabs";
 import { AdminBanner } from "./AdminBanner";
@@ -186,7 +186,7 @@ export const ChatLayout = () => {
 
         {/* Messages Area with better spacing */}
         <div className="flex-1 overflow-hidden bg-chat-bg">
-          <ChatMessages onReply={handleReply} onQuote={handleQuote} />
+          <ChatMessages roomId={currentRoom || "general"} icMemberId={user?.id || ""} />
         </div>
 
         {/* Enhanced Input Area */}

@@ -168,10 +168,10 @@ export const useChatData = () => {
 
           return {
             ...message,
-            reply_to: message.reply_to && message.reply_to.length > 0 ? {
-              id: message.reply_to[0].id,
-              content: message.reply_to[0].content,
-              user: message.reply_to[0].user
+            reply_to: message.reply_to && Array.isArray(message.reply_to) && message.reply_to.length > 0 ? {
+              id: (message.reply_to[0] as any)?.id,
+              content: (message.reply_to[0] as any)?.content,
+              user: (message.reply_to[0] as any)?.user
             } : undefined,
             reactions: groupedReactions
           };

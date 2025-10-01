@@ -34,7 +34,7 @@ export function useReactions(messageId: string, icMemberId: string): UseReaction
   const refresh = useCallback(async () => {
     if (!messageId) return;
     const { data, error } = await supabase
-      .from<ReactionRow>("message_reactions")
+      .from("message_reactions")
       .select("message_id, ic_member_id, emoji, created_at")
       .eq("message_id", messageId);
 

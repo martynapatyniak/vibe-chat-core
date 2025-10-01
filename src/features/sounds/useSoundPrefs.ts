@@ -14,7 +14,7 @@ export function useSoundPrefs(userId: string | null | undefined) {
   const load = useCallback(async () => {
     if (!userId) return;
     const { data, error } = await supabase
-      .from<SoundPrefs>("user_prefs")
+      .from("user_prefs")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();

@@ -40,7 +40,7 @@ export default function ChatMessages({ roomId, icMemberId, className }: Props) {
   async function fetchMessages() {
     setLoading(true);
     const { data, error } = await supabase
-      .from<Message>("messages")
+      .from("messages")
       .select("*")
       .eq("room_id", roomId)
       .order("created_at", { ascending: true });
@@ -62,7 +62,9 @@ export default function ChatMessages({ roomId, icMemberId, className }: Props) {
         fetchMessages()
       )
       .subscribe();
-    return () => supabase.removeChannel(ch);
+    return () => {
+      supabase.removeChannel(ch);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 

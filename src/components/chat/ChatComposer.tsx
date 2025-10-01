@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
-import MentionsDropdown from "@/features/chat/mentions/MentionsDropdown";
-import { useUserMentionSearch } from "@/features/chat/mentions/useUserMentionSearch";
+import { MentionsDropdown } from "@/components/MentionsDropdown";
+import { useUserMentionSearch } from "@/hooks/useUserMentionSearch";
 
 import { sanitizeMessage } from "@/features/chat/sanitize";
 import { supabase } from "@/lib/supabaseClient";
@@ -77,12 +77,13 @@ export default function ChatComposer({
   }, [value]);
 
   const q = currentMention?.query || "";
-  const { results } = useUserMentionSearch(q);
+  const { results, setQuery } = useUserMentionSearch();
 
   useEffect(() => {
+    setQuery(q);
     setMentionOpen(!!currentMention && q.length > 0 && (results?.length ?? 0) > 0);
     setHighlight(0);
-  }, [currentMention, q, results?.length]);
+  }, [currentMention, q, results?.length, setQuery]);
 
   const insertAt = (text: string, from: number, to: number, snippet: string) => {
     return text.slice(0, from) + snippet + text.slice(to);
@@ -156,7 +157,7 @@ export default function ChatComposer({
     if (!trimmedRaw || overLimit) return;
 
     // sanitizacja
-    const trimmed = sanitizeMessage ? sanitizeMessage(trimmedRaw) : trimmedRaw;
+    const trimmed = sanitizeMessage ? sanitizeMessage(trimmedRaw, {}) : trimmedRaw;
 
     setSending(true);
     setFloodDenied(null);
@@ -245,14 +246,35 @@ export default function ChatComposer({
         </div>
 
         {mentionOpen && !!results.length && (
-          <MentionsDropdown
-            items={results.slice(0, 8)}
-            highlight={highlight}
-            onPick={(u) => {
-              const idx = results.findIndex((r) => r.id === u.id);
-              pickMention(idx >= 0 ? idx : 0);
-            }}
-          />
+          <div className="absolute bottom-full left-0 mb-2 w-full max-w-xs bg-background border rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+            {results.slice(0, 8).map((user, idx) => (
+              <button
+                key={user.id}
+                type="button"
+                onClick={() => {
+                  const index = results.findIndex((r) => r.id === user.id);
+                  pickMention(index >= 0 ? index : 0);
+                }}
+                className={`w-full px-3 py-2 text-left hover:bg-accent transition-colors ${
+                  idx === highlight ? 'bg-accent' : ''
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {user.avatar_url && (
+                    <img src={user.avatar_url} alt="" className="w-6 h-6 rounded-full" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {user.display_name || user.username}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      @{user.username}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
