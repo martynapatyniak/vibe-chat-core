@@ -485,6 +485,42 @@ export type Database = {
           },
         ]
       }
+      security_audit_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          ip_address: unknown | null
+          new_data: Json | null
+          old_data: Json | null
+          record_id: string | null
+          table_name: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          new_data?: Json | null
+          old_data?: Json | null
+          record_id?: string | null
+          table_name?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       system_messages: {
         Row: {
           content: string
@@ -851,7 +887,7 @@ export type Database = {
         Returns: Json
       }
       get_effective_role: {
-        Args: { p_room: string; p_user: string }
+        Args: { p_room_id: string; p_user_id: string }
         Returns: string
       }
       get_last_read: {
@@ -882,6 +918,16 @@ export type Database = {
           is_private: boolean
           name: string
         }[]
+      }
+      log_security_event: {
+        Args: {
+          p_action: string
+          p_new_data?: Json
+          p_old_data?: Json
+          p_record_id?: string
+          p_table_name: string
+        }
+        Returns: undefined
       }
       mark_room_read: {
         Args: { p_ic_id: string; p_room_id: string }
