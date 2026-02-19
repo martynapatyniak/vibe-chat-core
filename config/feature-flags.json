@@ -1,0 +1,19 @@
+{
+  "showCountryFlag": true,
+  "showRankAfterNick": true,
+  "quoteBoxEnabled": true,
+  "mentionsEnabled": true,
+  "enterToSend": false,
+  "shiftEnterNewline": true,
+  "attachmentsEnabled": true,
+  "maxUploadSizeMB": 10,
+  "oembedVideo": true,
+  "miniPlayerAudio": true,
+  "voiceMessages": false,
+  "autoTranslate": false,
+  "rateLimitPerMin": 20,
+  "messageCharLimit": 2000,
+  "infiniteScroll": true,
+  "archiveEnabled": true,
+  "roomsAdminOnly": true
+}
